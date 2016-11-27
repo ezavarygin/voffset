@@ -1,0 +1,223 @@
+#!/usr/bin/env python
+
+import numpy as np
+import sys
+from astropy.io import fits
+from scipy.interpolate import InterpolatedUnivariateSpline as IUSpline
+from scipy.optimize import minimize
+
+#===========================================================================================
+
+from functions.spec_parse import Up_parse
+from functions.functions  import *
+
+speed_light = 299792.458 # km/s
+
+#===========================================================================================
+# PRINT TO THE SCREEN
+
+def welcome_page():
+    print ""
+    print "================================ voffset ========================================"
+    print ""
+    print " Usage:  voffset <list of spectra> --an anchor.fits [--option]"
+    print ""
+    print "================================================================================="
+    print ""
+    print " <list of spectra> ... : List of UVES_popler output files to cross-correlate"
+    print ""
+    print "          --an ....... : Followed with a path to the anchor spectrum;"
+    print "          ............ : other spectra will be cross-correlated with it."
+    print ""
+    print " Options: --fwhm ..... : Folowed with a path to a file with Gaussian FWHM kernels"
+    print "          ............ : for each of the spectra including the anchor one;"
+    print "          ............ : if not given, 3-pixel width is used instead."
+    print "          --plot ..... : Create a pdf file with off-set distribution bar chart."
+    print ""
+    print "================================================================================="
+    print ""
+
+def no_UVES_popler(no_Up_file):
+    print "==============================================================="
+    print "'{}' is not UVES_popler's output file!".format(no_Up_file)
+    print "voffset was designed to work with UVES_popler files only."
+    print "==============================================================="
+
+def anchor_no_UVES_popler():
+    print "==============================================================="
+    print "The anchor spectrum is not UVES_popler's output file!"
+    print "voffset was designed to work with UVES_popler files only."
+    print "==============================================================="
+
+
+#===========================================================================================
+# CHECKS
+
+if len(sys.argv)==1 or not '--an' in sys.argv:
+    welcome_page()
+    quit()
+
+# Put spectra into a list
+file_list = []
+for i in range(1,len(sys.argv)):
+    if sys.argv[i] != '--an' and sys.argv[i] != '--fwhm' and sys.argv[i] != '--plot':
+        file_list.append(sys.argv[i])
+    else: break
+
+if len(file_list) == 0:
+    print "====================================="
+    print " Warning: no spectra were specified!"
+    print "====================================="
+    quit()
+# Find anchor spectrum and file with wavelength ranges
+wr_path = []
+res_path = None
+for i in range(1+len(file_list),len(sys.argv)):
+    if sys.argv[i] == '--an':
+        try:
+            an_path = sys.argv[i+1]
+        except IndexError:
+            print "==========================================="
+            print " Warning: no anchor spectrum was specified!"
+            print "==========================================="
+            quit()
+    elif sys.argv[i] == '--fwhm':
+        try:
+            res_path = sys.argv[i+1]
+        except IndexError:
+            print "==========================================================="
+            print " Warning: no file with Gaussian FWHM kernels was specified!"
+            print "==========================================================="
+            quit()
+    else:
+        pass
+
+
+# Check if the input spectra come from UVES_popler
+for spec in file_list:
+    f = fits.open(spec)
+    try:
+        if not any('UVES_popler' in i for i in f[0].header['HISTORY']):
+            no_UVES_popler(spec)
+            quit()
+        else:
+            pass
+    except KeyError:
+        no_UVES_popler(spec)
+        quit()
+# Check if the anchor spectrum is from UVES_popler
+f = fits.open(an_path)
+try:
+    if not any('UVES_popler' in i for i in f[0].header['HISTORY']):
+        anchor_no_UVES_popler()
+        quit()
+    else:
+        pass
+except KeyError:
+    anchor_no_UVES_popler()
+    quit()
+f.close()
+
+
+#===========================================================================================
+# ALL GOOD -- WELCOME MESSAGE
+print ""
+print "================================ voffset ========================================"
+print ""
+if res_path == None:
+    print "No file with Gaussian kernels was specified!"
+    print "3-pixel width will be used instead."
+    print "................................................................................."
+
+#===========================================================================================
+# PARSING FILES
+
+# open file to save in
+file = open("voffset_result.dat",'w')
+
+# Anchor spectrum --------------------------------------------------------------------------
+
+# parse the fits file
+an_spec = Up_parse(an_path)
+# make flux values in clipped pixels to be np.nan
+an_spec.fix_clip()
+# make error values in clipped pixels to be median
+an_spec.fix_clip_err_med()
+# convolve with Gaussian to increase S/N
+an_spec.convolve(res_path)
+# create continuous functions by cubic spline
+template_func = IUSpline(an_spec.wave,an_spec.flux)
+template_err_func = IUSpline(an_spec.wave,an_spec.error)
+print ""
+print 'Anchor spectrum: {}'.format(an_spec.file_name)
+print "................................................................................."
+print ""
+file.write("{} {} {}\n".format(an_spec.file_name,0.0,0.0))
+
+off_sets_for_plot = [0.0]
+
+# Other spectra ----------------------------------------------------------------------------
+print 'Spectra to determine the velocity off-sets for:'
+
+# Exclude the anchor spectrum if it appears in the list being analysed
+for name in file_list:
+    if name.split('/')[-1] == an_spec.file_name:
+        print ""
+        print '{} is the anchor spectrum => Excluded from the list'.format(name.split('/')[-1])
+        file_list.remove(name)
+
+# Parse files in the list
+for spec_i in range(len(file_list)):
+    spec = Up_parse(file_list[spec_i])
+    spec.fix_clip()
+    spec.convolve(res_path)
+    spec.fix_clip()
+    spec.fix_clip_err_nan()
+    spec.get_mask(an_spec)
+
+    # Minimise either using scipy routine or using a 'direct' method
+    scipy_optimize_minimize = False
+    # if False, derectly calculates chi2 in a few points and takes min
+    # if True, uses scipy.interpolate.InterpolatedUnivariateSpline module to minimise chi2
+    if scipy_optimize_minimize:
+        v_guess  = -0.2 # Avoid using 0.0: some minimizing methods fail
+        res_min  = minimize(chi2,v_guess,args=(template_func,template_err_func,spec),method='BFGS', tol=1e-3)
+        # try also method 'Nelder-Mead', but watch the v_guess=0.0 case.
+        try:
+            off_set = res_min.x[0]
+        except IndexError:
+            off_set = res_min.x
+        try:
+            chi2_min = res_min.fun[0]
+        except TypeError:
+            chi2_min = res_min.fun
+    else:
+        # find the shift using arrays (no numerical minimizing)
+        off_set_list = np.arange(-5.0,5.0001,0.001)
+        chisq = chi2(off_set_list,template_func,template_err_func,spec)
+        i_min = np.argmin(chisq)
+        off_set = off_set_list[i_min]
+        chi2_min = np.min(chisq)
+
+    # print on the screen and in the file
+    print ""
+    print 'Spectrum: {} | off_set = {:f} km/s'.format(spec.file_name,off_set)
+    if spec_i != len(file_list)-1:
+        file.write("{} {:f} {:f}\n".format(spec.file_name,off_set,chi2_min))
+    else:
+        file.write("{} {:f} {:f}".format(spec.file_name,off_set,chi2_min))
+    off_sets_for_plot.append(off_set)
+
+file.close()
+
+if '--plot' in sys.argv:
+    off_set_plot(off_sets_for_plot)
+else:
+    pass
+
+#===========================================================================================
+# ALL DONE
+print "................................................................................."
+print ""
+print "All done!"
+print "================================================================================="
