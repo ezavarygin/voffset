@@ -36,7 +36,7 @@ Options:
 
 --plot - create a pdf file with an off-set distribution bar chart.
 ```
-The program creates a file with 3 columns: names of the specified spectra files, velocity off-sets in km/s and chi^2/dof (see below).
+The program creates a file with two columns: file names of the specified spectra, velocity off-sets in km/s.
 The first line corresponds to the reference spectrum.
 
 ## How it works
@@ -58,4 +58,4 @@ of a chi^2-function with respect to the off-set. The program uses only valid (un
 by both exposures. It determines the chi^2 minimums for all the specified spectra and writes them into a "voffset_result.dat" file. 
 The program knows 2 ways of minimising: numerical and "direct" (you can choose either, see 179th line of the `voffset` file). 
 The default one is the latter where chi^2 is directly calculated in a range of +/-5 km/s with a step of 0.001 km/s 
-(you can change it in the code) and then the minimum value is taken out.
+(you can tweak it in the code) and then the minimum value is taken out.
