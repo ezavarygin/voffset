@@ -60,12 +60,12 @@ def off_set_plot(list):
         print "Something wrong with min/max bins!"
     fig = plt.figure()
     ax  = fig.add_subplot(111)
-    ax.hist(data, bins, histtype='bar', facecolor='#a6cee3',edgecolor = '#1f78b4',alpha=1)# rwidth=0.95
+    n, bins, patches = ax.hist(data, bins, histtype='bar', facecolor='#a6cee3',edgecolor = '#1f78b4',alpha=1)# rwidth=0.95
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     ax.set_ylabel('Number of spectra')
     ax.set_xlabel('Velocity off-set, km/s')
-#    ax.set_xlim([bin_step*(bin_min//bin_step-0.9),bin_step*(bin_max//bin_step + 1.95)])
-#    ax.set_ylim([0.01,4.3])
+    ax.set_xlim([np.min(bins)-0.95*bin_step,np.max(bins)+0.95*bin_step])
+    ax.set_ylim([0.01,np.max(n)+0.3])
     fig.savefig('voffset_dist.pdf',bbox_inches='tight',pad_inches=0)
     print "................................................................................."
     print ""

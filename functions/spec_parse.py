@@ -11,10 +11,11 @@ class Up_parse:
     
     It provides wavelength, flux, sigma_error, mask (valid pixels) arrays.
     """
-    def __init__(self, path_to_fits):
+    def __init__(self, path_to_fits,off_set=0.0):
+        shift = 1. + off_set/299792.458 # (1+v/c)
         self.fits_opened = fits.open(path_to_fits)
         self.file_name = path_to_fits.split('/')[-1]
-        self.wave   = np.array([self.pix2wave(pix) for pix in range(self.fits_opened[0].data[0].size)])
+        self.wave   = np.array([self.pix2wave(pix)*shift for pix in range(self.fits_opened[0].data[0].size)])
         self.flux   = self.fits_opened[0].data[0]
         self.error  = self.fits_opened[0].data[1]
         self.disp   = self.fits_opened[0].header['UP_DISP']

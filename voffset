@@ -152,7 +152,7 @@ print ""
 print 'Anchor spectrum: {}'.format(an_spec.file_name)
 print "................................................................................."
 print ""
-file.write("{} {} {}\n".format(an_spec.file_name,0.0,0.0))
+file.write("{} {}\n".format(an_spec.file_name,0.0))
 
 off_sets_for_plot = [0.0]
 
@@ -199,13 +199,16 @@ for spec_i in range(len(file_list)):
         off_set = off_set_list[i_min]
         chi2_min = np.min(chisq)
 
+    # change the sign to represent the shift with respect to the anchor (not vice versa)
+    off_set = -1.0*off_set
+        
     # print on the screen and in the file
     print ""
     print 'Spectrum: {} | off_set = {:f} km/s'.format(spec.file_name,off_set)
     if spec_i != len(file_list)-1:
-        file.write("{} {:f} {:f}\n".format(spec.file_name,off_set,chi2_min))
+        file.write("{} {:f}\n".format(spec.file_name,off_set))
     else:
-        file.write("{} {:f} {:f}".format(spec.file_name,off_set,chi2_min))
+        file.write("{} {:f}".format(spec.file_name,off_set))
     off_sets_for_plot.append(off_set)
 
 file.close()
