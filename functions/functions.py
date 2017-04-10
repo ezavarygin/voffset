@@ -13,8 +13,10 @@ def chi2(off_set,template_func,template_err_func, spec):
                              (spec.error[i]**2 + template_err_func(wave*shift)**2)\
                              for i,wave in enumerate(spec.wave)\
                              if spec.mask[i])
-    appr_size = np.count_nonzero(spec.mask)
-    return chi_squared/(appr_size-1.0)
+    return chi_squared
+# If you want a reduced chi2 (chi2/dof), change to
+#    appr_size = np.count_nonzero(spec.mask)
+#    return chi_squared/(appr_size-1.0)
 
 
 def detail_wl_array(old_array,resol):
@@ -34,19 +36,19 @@ def detail_wl_array(old_array,resol):
     return np.array(new_list)
 
 
-def off_set_plot(list):
+def off_set_plot(shift_list):
     """
     The module is to create a bar chart with distribution of the off-sets.
     """
     import matplotlib.pyplot as plt
     import matplotlib.ticker as ticker
     from matplotlib import rc
-    rc('font', family='Comic Sans MS')
+    #rc('font', family='Comic Sans MS')
     rc('axes', labelsize=16)
-#    with open(list) as f:# in case list is path to file voffset_result.dat
+#    with open(shift_list) as f:# in case list is path to file voffset_result.dat
 #        data = f.read().split('\n')
 #    data = map(float,[data_i.split(' ')[1] for data_i in data])
-    data = list
+    data = shift_list
     bin_min = np.min(data)
     bin_max = np.max(data)
     bin_step = 0.1

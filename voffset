@@ -5,10 +5,11 @@ import sys
 from astropy.io import fits
 from scipy.interpolate import InterpolatedUnivariateSpline as IUSpline
 from scipy.optimize import minimize
+import matplotlib.pyplot as plt
 
 #===========================================================================================
 
-from functions.spec_parse import Up_parse
+from functions.up_parse import Up_parse
 from functions.functions  import *
 
 speed_light = 299792.458 # km/s
@@ -24,15 +25,16 @@ def welcome_page():
     print ""
     print "================================================================================="
     print ""
-    print " <list of spectra> ... : List of UVES_popler output files to cross-correlate"
+    print " <list of spectra> ..... : List of UVES_popler output files to cross-correlate"
     print ""
-    print "          --an ....... : Followed with a path to the anchor spectrum;"
-    print "          ............ : other spectra will be cross-correlated with it."
+    print "          --an ......... : Followed with a path to the anchor spectrum;"
+    print "          .............. : other spectra will be cross-correlated with it."
     print ""
-    print " Options: --fwhm ..... : Folowed with a path to a file with Gaussian FWHM kernels"
-    print "          ............ : for each of the spectra including the anchor one;"
-    print "          ............ : if not given, 3-pixel width is used instead."
-    print "          --plot ..... : Create a pdf file with off-set distribution bar chart."
+    print " Options: --fwhm ....... : Folowed with a path to a file with Gaussian FWHM kernels"
+    print "          .............. : for each of the spectra including the anchor one;"
+    print "          .............. : if not given, 3-pixel width is used instead."
+    print "          --plot ....... : Create a pdf file with off-set distribution bar chart."
+    print "          --chi2plots .. : Plot chi2 fitted with a porabola for each spectrum."
     print ""
     print "================================================================================="
     print ""
@@ -60,7 +62,7 @@ if len(sys.argv)==1 or not '--an' in sys.argv:
 # Put spectra into a list
 file_list = []
 for i in range(1,len(sys.argv)):
-    if sys.argv[i] != '--an' and sys.argv[i] != '--fwhm' and sys.argv[i] != '--plot':
+    if sys.argv[i] != '--an' and sys.argv[i] != '--fwhm' and sys.argv[i] != '--plot' and sys.argv[i] != '--chi2plots':
         file_list.append(sys.argv[i])
     else: break
 
@@ -152,7 +154,7 @@ print ""
 print 'Anchor spectrum: {}'.format(an_spec.file_name)
 print "................................................................................."
 print ""
-file.write("{} {}\n".format(an_spec.file_name,0.0))
+file.write("{} {} {}\n".format(an_spec.file_name,0.0,0.0))
 
 off_sets_for_plot = [0.0]
 
@@ -177,9 +179,9 @@ for spec_i in range(len(file_list)):
 
     # Minimise either using scipy routine or using a 'direct' method
     scipy_optimize_minimize = False
-    # if False, derectly calculates chi2 in a few points and takes min
+    # if False, directly calculates chi2 in a few points and takes min
     # if True, uses scipy.interpolate.InterpolatedUnivariateSpline module to minimise chi2
-    if scipy_optimize_minimize:
+    if scipy_optimize_minimize: # at the current version, this way does not give uncertainties on the offsets
         v_guess  = -0.2 # Avoid using 0.0: some minimizing methods fail
         res_min  = minimize(chi2,v_guess,args=(template_func,template_err_func,spec),method='BFGS', tol=1e-3)
         # try also method 'Nelder-Mead', but watch the v_guess=0.0 case.
@@ -193,22 +195,45 @@ for spec_i in range(len(file_list)):
             chi2_min = res_min.fun
     else:
         # find the shift using arrays (no numerical minimizing)
-        off_set_list = np.arange(-5.0,5.0001,0.001)
+        off_set_list = np.arange(-3.0,3.0001,0.001)
         chisq = chi2(off_set_list,template_func,template_err_func,spec)
         i_min = np.argmin(chisq)
-        off_set = off_set_list[i_min]
-        chi2_min = np.min(chisq)
+        # Fit data close to the minimum with a parabola
+        n_points = 70 # number of data points around the minimum to fit with parabola
+        chi2_fit = np.polyfit(off_set_list[i_min-n_points:i_min+n_points],chisq[i_min-n_points:i_min+n_points],2)
+        fit_line = np.poly1d(chi2_fit)
+        off_set  = -1.0*chi2_fit[1]/(2.0*chi2_fit[0]) # analytical solution for the off-set at the minimum
+        chi2_min = -1.0*chi2_fit[1]**2/(4.0*chi2_fit[0]) + chi2_fit[2] # analytical solution for the minimum
+        c_new = chi2_fit[1]**2/(4.0*chi2_fit[0]) - 1.0 # c-coefficient after substitution of chi2_min+1
+        # Find roots of quadratic to get +/- range of (chi2_min+1)
+        pos_1sig = (-1.0*chi2_fit[1]+(chi2_fit[1]**2 - 4.0*chi2_fit[0]*c_new)**0.5)/(2.0*chi2_fit[0])
+        neg_1sig = (-1.0*chi2_fit[1]-(chi2_fit[1]**2 - 4.0*chi2_fit[0]*c_new)**0.5)/(2.0*chi2_fit[0])
+        delta_p  = pos_1sig - off_set
+        if "--chi2plots" in sys.argv:
+            plt.xlim([off_set_list[i_min-n_points-10],off_set_list[i_min+n_points+10]])
+            plt.ylim([chi2_min-0.5,chi2_min+3])
+            plt.axvline(off_set,ls="--",color="g") # minimum
+            plt.axvline(neg_1sig,color="r") # minimum - 1sigma
+            plt.axvline(pos_1sig,color="r") # minimum + 1sigma
+            plt.axvline(off_set_list[i_min-n_points]) # range of points fitted with parabola
+            plt.axvline(off_set_list[i_min+n_points])
+            plt.scatter(off_set_list,chisq,color=["k"]*len(off_set_list))
+            x_detail = np.arange(-4.0,4.00001,0.0001)
+            plt.plot(x_detail,fit_line(x_detail))
+            ax = plt.gca()
+            ax.ticklabel_format(useOffset=False)
+            plt.show()
 
     # change the sign to represent the shift with respect to the anchor (not vice versa)
     off_set = -1.0*off_set
         
     # print on the screen and in the file
-    print ""
-    print 'Spectrum: {} | off_set = {:f} km/s'.format(spec.file_name,off_set)
+#    print ""
+    print 'Spectrum: {} | off_set = {:.4f} +/- {:.4f} km/s'.format(spec.file_name,off_set,delta_p)
     if spec_i != len(file_list)-1:
-        file.write("{} {:f}\n".format(spec.file_name,off_set))
+        file.write("{} {:.4f} {:.4f}\n".format(spec.file_name,off_set,delta_p))
     else:
-        file.write("{} {:f}".format(spec.file_name,off_set))
+        file.write("{} {:.4f} {:.4f}".format(spec.file_name,off_set,delta_p))
     off_sets_for_plot.append(off_set)
 
 file.close()

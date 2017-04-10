@@ -2,7 +2,7 @@
 
 ## Description
 The program determines regular, i.e. constant within each exposure, velocity off-sets between quasar/stellar absorption line spectra.
-The latter should be normalised and be output files of [UVES_popler](https://github.com/MTMurphy77/UVES_popler) software by Michael Murphy.
+The latter should be normalised and be output files of the [UVES_popler](https://github.com/MTMurphy77/UVES_popler) software.
 
 ## Installation
 The software was written to work with `python 2.7`. 
@@ -15,7 +15,7 @@ That is it, you can run it from any directory on your machine.
 - astropy
 - numpy
 - scipy
-- matplotlib (if you use `--plot`)
+- matplotlib
 - sys
 
 
@@ -35,8 +35,10 @@ Options:
 (if not specified, 3-pixel width is used instead). Example of the file with Gaussian kernels can be found in the `example` folder.
 
 --plot - create a pdf file with an off-set distribution bar chart.
+
+--chi2plots - Plot chi2 fitted with a porabola for each spectrum.
 ```
-The program creates a file with two columns: file names of the specified spectra, velocity off-sets in km/s.
+The program creates a file with three columns: file names of the specified spectra, velocity off-sets in km/s, 1 sigma uncertainty on the off-set in km/s (determined from points where *chi^2 = chi^2_min + 1*).
 The first line corresponds to the reference spectrum.
 
 ## How it works
@@ -56,6 +58,6 @@ of wavelength and the off-set.
 The velocity off-set between each examined exposure and the reference one is given by the minimum 
 of a chi^2-function with respect to the off-set. The program uses only valid (unaffected by CRs, etc.) pixels covered 
 by both exposures. It determines the chi^2 minimums for all the specified spectra and writes them into a "voffset_result.dat" file. 
-The program knows 2 ways of minimising: numerical and "direct" (you can choose either, see 179th line of the `voffset` file). 
-The default one is the latter where chi^2 is directly calculated in a range of +/-5 km/s with a step of 0.001 km/s 
-(you can tweak it in the code) and then the minimum value is taken out.
+The program knows 2 ways of minimising: numerical and "direct" (you can choose either, see 180th line of the `voffset` file), but uncertainties on the off-sets are calculated for the latter only.  
+The default one is the "direct" method where chi^2 is directly calculated in the range of +/-3 km/s with a step of 0.001 km/s 
+(you can tweak it in the code). Then, the points around the minimum are fitted with a parabola and the minimum value and the uncertainty are taken and printed on the screen and to the file.
