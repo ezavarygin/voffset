@@ -13,6 +13,8 @@ def chi2(off_set,template_func,template_err_func, spec):
                              (spec.error[i]**2 + template_err_func(wave*shift)**2)\
                              for i,wave in enumerate(spec.wave)\
                              if spec.mask[i])
+    appr_size = np.count_nonzero(spec.mask)
+    print np.min(chi_squared/(appr_size-1.0))
     return chi_squared
 # If you want a reduced chi2 (chi2/dof), change to
 #    appr_size = np.count_nonzero(spec.mask)

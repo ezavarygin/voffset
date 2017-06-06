@@ -11,7 +11,10 @@ import matplotlib.pyplot as plt
 
 from functions.up_parse import Up_parse
 from functions.functions  import *
+#import time
+#start_time = time.time()
 
+show_spectra = False # True to plot original/convolved/3splined spectra
 speed_light = 299792.458 # km/s
 
 #===========================================================================================
@@ -141,15 +144,30 @@ file = open("voffset_result.dat",'w')
 
 # parse the fits file
 an_spec = Up_parse(an_path)
+if show_spectra:
+    plt.axhline(y=0,ls="--",c="gray")
+    plt.axhline(y=1,ls="--",c="gray")
+    plt.plot(an_spec.wave,an_spec.flux,drawstyle="steps-mid",c="g",label="original")
+
 # make flux values in clipped pixels to be np.nan
 an_spec.fix_clip()
 # make error values in clipped pixels to be median
 an_spec.fix_clip_err_med()
 # convolve with Gaussian to increase S/N
 an_spec.convolve(res_path)
+if show_spectra:
+    plt.plot(an_spec.wave,an_spec.flux,drawstyle="steps-mid",c="r",label="convolved")
 # create continuous functions by cubic spline
 template_func = IUSpline(an_spec.wave,an_spec.flux)
 template_err_func = IUSpline(an_spec.wave,an_spec.error)
+
+if show_spectra:
+    wave_detile = np.array([np.arange(an_spec.wave[j],an_spec.wave[j+1],(an_spec.wave[j+1]-an_spec.wave[j])/10) for j in range(len(an_spec.wave)-1)])
+    wave_detile = wave_detile.flatten()
+    plt.plot(wave_detile,template_func(wave_detile),c="b",label="3spline")
+    #plt.legend()
+    #plt.show()
+
 print ""
 print 'Anchor spectrum: {}'.format(an_spec.file_name)
 print "................................................................................."
@@ -176,6 +194,10 @@ for spec_i in range(len(file_list)):
     spec.fix_clip()
     spec.fix_clip_err_nan()
     spec.get_mask(an_spec)
+    if show_spectra:
+#        plt.plot(spec.wave,spec.flux,drawstyle="steps-mid",c="orange",label="tested")
+        plt.legend()
+        plt.show()
 
     # Minimise either using scipy routine or using a 'direct' method
     scipy_optimize_minimize = False
@@ -249,3 +271,4 @@ print ".........................................................................
 print ""
 print "All done!"
 print "================================================================================="
+#print " {} s".format(time.time()-start_time)

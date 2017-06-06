@@ -15,31 +15,31 @@ class Up_parse:
         shift = 1. + off_set/299792.458 # (1+v/c)
         self.fits_opened = fits.open(path_to_fits)
         self.file_name = path_to_fits.split('/')[-1]
-        self.wave   = np.array([self.pix2wave(pix)*shift for pix in range(self.fits_opened[0].data[0].size)])
-        self.flux   = self.fits_opened[0].data[0]
-        self.error  = self.fits_opened[0].data[1]
-        self.disp   = self.fits_opened[0].header['UP_DISP']
-        self.mask   = np.array([True if status == 1.0 else False for status in self.fits_opened[0].data[4]])
-#        self.status = self.fits_opened[0].data[4] # clipping status in Up
-        self.fits_opened.close()
-#        self.weight = np.array([1.0 if mask else 1E-10 for mask in self.mask]) # no working in spline?
-        self.length = len(self.flux)
-        
-
-    def pix2wave(self,pixel):
-        """
-        Convert a pixel number into a wavelength.
-
-        It is based on the info from the header.
-        """
         log_lin = self.fits_opened[0].header['DC-FLAG']
         if log_lin == 1:
             wl_0     = 10**self.fits_opened[0].header['CRVAL1']
             CRPIX1   = self.fits_opened[0].header['CRPIX1']
             log_disp = self.fits_opened[0].header['CD1_1']
-            w_i=wl_0*10**(((pixel+1)-CRPIX1)*log_disp)
         else:
             sys.exit('wavelength scale should be log-linear!')
+        self.wave   = np.array([self.pix2wave(pix,wl_0,CRPIX1,log_disp)*shift for pix in range(self.fits_opened[0].data[0].size)])
+        self.flux   = np.array(self.fits_opened[0].data[0])
+        self.error  = np.array(self.fits_opened[0].data[1])
+        self.disp   = self.fits_opened[0].header['UP_DISP']
+        self.mask   = np.array([True if status == 1.0 else False for status in self.fits_opened[0].data[4]])
+#        self.status = self.fits_opened[0].data[4] # clipping status in Up
+        self.fits_opened.close()
+#        self.weight = np.array([1.0 if mask else 1E-10 for mask in self.mask]) # no working in spline?
+        self.length = self.flux.size
+        
+
+    def pix2wave(self,pixel,wl_0,CRPIX1,log_disp):
+        """
+        Convert a pixel number into a wavelength.
+
+        It is based on the info from the header.
+        """
+        w_i=wl_0*10**(((pixel+1)-CRPIX1)*log_disp)
         return w_i
 
     def fix_clip(self):
